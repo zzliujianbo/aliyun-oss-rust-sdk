@@ -100,11 +100,28 @@ impl<'a> OSS {
         }
     }
 
-    pub fn format_host<S: AsRef<str>>(&self, bucket: S, key: S, build: &RequestBuilder) -> String {
-        let key = if key.as_ref().starts_with("/") {
-            key.as_ref().to_string()
+    pub fn format_url<S: AsRef<str>>(&self, bucket: S, key: S, build: &RequestBuilder) -> String {
+        let key = {
+            if build.parameters.len() > 0 {
+                let mut params = build.parameters.iter().collect::<Vec<_>>();
+                params.sort_by(|a, b| a.0.cmp(&b.0));
+                format!(
+                    "{}?{}",
+                    key.as_ref(),
+                    params
+                        .into_iter()
+                        .map(|(k, v)| format!("{}={}", k, v))
+                        .collect::<Vec<_>>()
+                        .join("&")
+                )
+            } else {
+                key.as_ref().to_string()
+            }
+        };
+        let key = if key.starts_with("/") {
+            key
         } else {
-            format!("/{}", key.as_ref())
+            format!("/{}", key)
         };
         if let Some(cdn) = &build.cdn {
             format!("{}{}", cdn, key,)
@@ -133,7 +150,7 @@ impl<'a> OSS {
         build: RequestBuilder,
     ) -> Result<(String, HeaderMap), InvalidHeaderValue> {
         let mut build = build.clone();
-        let host = self.format_host(self.bucket(), key.as_ref().to_string(), &build);
+        let url = self.format_url(self.bucket(), key.as_ref().to_string(), &build);
         let mut header = HeaderMap::new();
         let date = self.date();
         header.insert(DATE, date.parse()?);
@@ -144,7 +161,7 @@ impl<'a> OSS {
             header.insert(CONTENT_TYPE, content_type.parse()?);
         }
         header.insert(AUTHORIZATION, authorization.parse()?);
-        Ok((host, header))
+        Ok((url, header))
     }
     pub fn date(&self) -> String {
         let now: DateTime<Utc> = Utc::now();

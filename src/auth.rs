@@ -65,6 +65,7 @@ impl<'a> AuthAPI for OSS {
                     .join("&")
             );
         }
+        debug!("oss canonicalized_resource: {}", canonicalized_resource);
         let verb = build.method.to_string();
         let content_md5 = build.content_md5.clone().unwrap_or_default();
         let content_type = build.content_type.clone().unwrap_or_default();
