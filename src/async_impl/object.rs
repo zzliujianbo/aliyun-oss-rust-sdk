@@ -209,7 +209,7 @@ impl OSS {
     pub async fn delete_object<S: AsRef<str>>(
         &self,
         key: S,
-        build: RequestBuilder,
+        build: &RequestBuilder,
     ) -> Result<(), OssError> {
         let mut build = build.clone();
         build.method = RequestType::Delete;
