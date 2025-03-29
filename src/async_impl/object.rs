@@ -1,12 +1,12 @@
-use hmac::Hmac;
-use sha1::digest::Mac;
 use crate::entity::{PolicyBuilder, PolicyResp};
 use crate::error::OssError;
+use crate::metadata::ObjectMetadata;
 use crate::oss::{OSSInfo, API, OSS};
 use crate::request::{RequestBuilder, RequestType};
-use crate::{debug, util};
-use crate::metadata::ObjectMetadata;
 use crate::util::read_file;
+use crate::{debug, util};
+use hmac::Hmac;
+use sha1::digest::Mac;
 
 impl OSS {
     /// 获取对象
@@ -30,7 +30,7 @@ impl OSS {
         let (url, headers) = self
             .build_request(key.as_str(), build)
             .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
-        debug!("oss logget object url: {} headers: {:?}", url,headers);
+        debug!("oss logget object url: {} headers: {:?}", url, headers);
         let client = reqwest::Client::new();
         let response = client.get(url).headers(headers).send().await?;
         return if response.status().is_success() {
@@ -39,7 +39,7 @@ impl OSS {
         } else {
             let status = response.status();
             let result = response.text().await?;
-            debug!("oss log: get object status: {} error: {}", status,result);
+            debug!("oss log: get object status: {} error: {}", status, result);
             Err(OssError::Err(format!(
                 "get object status: {} error: {}",
                 status, result
@@ -80,20 +80,20 @@ impl OSS {
             ]
         }
         "#
-            .to_string();
+        .to_string();
         let success_action_status = 200;
         json_data = json_data.replacen("{time}", &date_str, 1);
         json_data = json_data.replacen("{bucket}", &self.bucket(), 1);
         //limit 1GB bytes
         json_data = json_data.replacen("{size}", &build.max_upload_size.to_string(), 1); //允许上传的最大文件大小
-        //success status
+                                                                                         //success status
         json_data = json_data.replacen(
             "{success_action_status}",
             success_action_status.to_string().as_str(),
             1,
         );
         json_data = json_data.replacen("{prefix}", &build.upload_dir, 1); //只允许上传到哪个目录上
-        //text file
+                                                                          //text file
         json_data = json_data.replacen("{content_type}", &build.content_type, 1);
         //只允许上传哪个类型文件
         debug!("oss log: policy json: {}", json_data);
@@ -135,7 +135,10 @@ impl OSS {
         let (url, headers) = self
             .build_request(key.as_str(), build)
             .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
-        debug!("oss log: put object from file: {} headers: {:?}", url,headers);
+        debug!(
+            "oss log: put object from file: {} headers: {:?}",
+            url, headers
+        );
         let client = reqwest::Client::new();
         let response = client.put(url).headers(headers).body(buffer).send().await?;
         return if response.status().is_success() {
@@ -143,7 +146,7 @@ impl OSS {
         } else {
             let status = response.status();
             let result = response.text().await?;
-            debug!("oss log: get object status: {} error: {}", status,result);
+            debug!("oss log: get object status: {} error: {}", status, result);
             Err(OssError::Err(format!(
                 "get object status: {} error: {}",
                 status, result
@@ -175,7 +178,10 @@ impl OSS {
         let (url, headers) = self
             .build_request(key.as_str(), build)
             .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
-        debug!("oss log: put object from file: {} headers: {:?}", url,headers);
+        debug!(
+            "oss log: put object from file: {} headers: {:?}",
+            url, headers
+        );
         let client = reqwest::Client::new();
         let response = client
             .put(url)
@@ -188,7 +194,7 @@ impl OSS {
         } else {
             let status = response.status();
             let result = response.text().await?;
-            debug!("oss log: get object status: {} error: {}", status,result);
+            debug!("oss log: get object status: {} error: {}", status, result);
             Err(OssError::Err(format!(
                 "get object status: {} error: {}",
                 status, result
@@ -217,7 +223,10 @@ impl OSS {
         let (url, headers) = self
             .build_request(key.as_str(), build)
             .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
-        debug!("oss log: put object from file: {} headers: {:?}", url,headers);
+        debug!(
+            "oss log: put object from file: {} headers: {:?}",
+            url, headers
+        );
         let client = reqwest::Client::new();
         let response = client.delete(url).headers(headers).send().await?;
         return if response.status().is_success() {
@@ -225,9 +234,46 @@ impl OSS {
         } else {
             let status = response.status();
             let result = response.text().await?;
-            debug!("oss log: get object status: {} error: {}", status,result);
+            debug!("oss log: get object status: {} error: {}", status, result);
             Err(OssError::Err(format!(
                 "get object status: {} error: {}",
+                status, result
+            )))
+        };
+    }
+
+    pub async fn copy_object(
+        &self,
+        key: &str,
+        source_key: &str,
+        build: &RequestBuilder,
+    ) -> Result<(), OssError> {
+        let mut build = build.clone();
+        build.method = RequestType::Put;
+        let key = self.format_key(key);
+        let source_key = self.format_key(source_key);
+        let (url, headers) = self
+            .build_request(key.as_str(), build)
+            .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
+        debug!(
+            "oss log: copy object from file: {} headers: {:?}",
+            url, headers
+        );
+        let client = reqwest::Client::new();
+        let response = client
+            .put(url)
+            .headers(headers)
+            .header("x-oss-copy-source", source_key)
+            .send()
+            .await?;
+        return if response.status().is_success() {
+            Ok(())
+        } else {
+            let status = response.status();
+            let result = response.text().await?;
+            debug!("oss log: copy object status: {} error: {}", status, result);
+            Err(OssError::Err(format!(
+                "copy object status: {} error: {}",
                 status, result
             )))
         };
@@ -244,26 +290,31 @@ impl OSS {
     /// let metadata = oss.get_object_metadata("/hello.txt", builder).await.unwrap();
     /// println!("{:?}", metadata);
     /// ```
-    pub async fn get_object_metadata<S: AsRef<str>>(&self, key: S, build: RequestBuilder) -> Result<ObjectMetadata, OssError>{
+    pub async fn get_object_metadata<S: AsRef<str>>(
+        &self,
+        key: S,
+        build: RequestBuilder,
+    ) -> Result<ObjectMetadata, OssError> {
         let mut build = build.clone();
         build.method = RequestType::Head;
         let key = self.format_key(key);
-        let (url, headers) = self.build_request(key.as_str(), build)
+        let (url, headers) = self
+            .build_request(key.as_str(), build)
             .map_err(|e| OssError::Err(format!("build request error: {}", e)))?;
-        debug!("put object from file: {} headers: {:?}", url,headers);
+        debug!("put object from file: {} headers: {:?}", url, headers);
         let client = reqwest::Client::new();
-        let response = client.head(url)
-            .headers(headers)
-            .send()
-            .await?;
+        let response = client.head(url).headers(headers).send().await?;
         return if response.status().is_success() {
             let metadata = ObjectMetadata::new(response.headers());
             Ok(metadata)
         } else {
             let status = response.status();
             let result = response.text().await?;
-            debug!("get object status: {} error: {}", status,result);
-            Err(OssError::Err(format!("get object status: {} error: {}", status, result)))
+            debug!("get object status: {} error: {}", status, result);
+            Err(OssError::Err(format!(
+                "get object status: {} error: {}",
+                status, result
+            )))
         };
     }
 }
